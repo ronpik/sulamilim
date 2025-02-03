@@ -3,6 +3,7 @@ from argparse import ArgumentParser
 from typing import Iterator, Sequence
 
 import networkx as nx
+from tqdm import tqdm
 
 from sulamilim.dataprep.utils.graph_itertools import enumerate_connected_subgraphs
 from sulamilim.dataprep.utils.graphlets import generate_graphlets
@@ -24,7 +25,7 @@ def generate_valid_graphlets(n: int) -> Iterator[nx.Graph]:
 
 def find_valid_sequences(
         G: nx.Graph,
-        valid_graphlets: list[nx.Graph],
+        valid_graphlet_hashes: set[str],
         seq_size: int
 ) -> Iterator[Sequence[str]]:
     """
@@ -33,28 +34,20 @@ def find_valid_sequences(
     graphlets. If so, determine its (canonical) Hamiltonian ordering and add that ordering
     to the sequence list.
     """
-    n_subsets = 0
-    n_valid = 0
+    states = dict(n_valid=0)
+    for nodes_set in tqdm(enumerate_connected_subgraphs(G, seq_size), postfix=states):
+        subgraph = G.subgraph(nodes_set)
+        subgraph_hash = nx.weisfeiler_lehman_graph_hash(subgraph)
+        if subgraph_hash not in valid_graphlet_hashes:
+            continue
 
-    # Enumerate only connected subgraphs of the desired size.
-    for nodes_set in enumerate_connected_subgraphs(G, seq_size):
-        if n_subsets % 10_000 == 0:
-            print(f"Iterated {n_subsets=} / {n_valid=}")
+        paths = all_hamiltonian_paths(subgraph)
+        if not paths:
+            warnings.warn(f"Subgraph is valid but no path was found: {subgraph.nodes()}")
+            continue
 
-        n_subsets += 1
-        subG = G.subgraph(nodes_set)
-        for graphlet in valid_graphlets:
-            if not nx.is_isomorphic(subG, graphlet):
-                continue
-
-            paths = all_hamiltonian_paths(subG)
-            if not paths:
-                warnings.warn(f"Subgraph is isomorphic to {graphlet} but path wasn't found: {subG.nodes()}")
-                continue
-
-            n_valid += 1
-            yield paths[0]
-            break  # No need to check other graphlets for this subgraph.
+        states['n_valid'] += 1
+        yield paths[0]
 
 
 def main():
@@ -71,9 +64,10 @@ def main():
 
     for i in [4, 5]:
         valid_graphlets = list(generate_valid_graphlets(i))
+        valid_graphlet_hashes = set(map(nx.weisfeiler_lehman_graph_hash, valid_graphlets))
         out_path = f"{args.output_prefix}-{i}.txt"
         with open(out_path, 'w') as f:
-            for seq in find_valid_sequences(G, valid_graphlets, i):
+            for seq in find_valid_sequences(G, valid_graphlet_hashes, i):
                 f.write(" - ".join(seq) + "\n")
 
 

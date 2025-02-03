@@ -117,7 +117,7 @@ def create_network_visualization(G, pos, output_file='network_viz.html'):
 def main():
     parser = argparse.ArgumentParser(description='Visualize word network')
     parser.add_argument('--input_file', '-p', type=Path, required=True, help='Path to the GraphML network file')
-    parser.add_argument('--output', default='network_viz.html',
+    parser.add_argument('--output', '-o', default='network_viz.html',
                         help='Output HTML file path (default: network_viz.html)')
 
     args = parser.parse_args()
