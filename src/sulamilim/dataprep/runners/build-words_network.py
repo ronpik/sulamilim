@@ -79,7 +79,7 @@ def main():
     parser = argparse.ArgumentParser(description='Build a word network from CSV file')
     parser.add_argument('--words-path', '-w', type= Path, required=True, help='Path to the CSV file containing words')
     parser.add_argument('--length', '-l', type=int, required=True, help='Length of words to include in the network')
-    parser.add_argument('--output', '-o',  default='word_network.graphml',
+    parser.add_argument('--output-prefix', '-o',  default='word_network',
                         help='Output file path for the network (default: word_network.graphml)')
 
     args = parser.parse_args()
@@ -92,9 +92,12 @@ def main():
     G = build_word_network(words)
     print(f"Network built with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges")
 
+    output_prefix = args.output_prefix
+    output = f"{output_prefix}-{args.length}.graphml"
+
     # Save the network
-    nx.write_graphml(G, args.output)
-    print(f"Network saved to {args.output}")
+    nx.write_graphml(G, output)
+    print(f"Network saved to {output}")
 
     # Print some basic network statistics
     print("\nNetwork Statistics:")

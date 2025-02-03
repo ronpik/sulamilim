@@ -1,10 +1,8 @@
 import warnings
 from argparse import ArgumentParser
-from itertools import combinations
 from typing import Iterator, Sequence
 
 import networkx as nx
-from tqdm import tqdm
 
 from sulamilim.dataprep.utils.graph_itertools import enumerate_connected_subgraphs
 from sulamilim.dataprep.utils.graphlets import generate_graphlets
