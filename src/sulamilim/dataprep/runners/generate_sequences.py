@@ -35,8 +35,9 @@ def find_valid_sequences(
     to the sequence list.
     """
     states = dict(n_valid=0)
-    for nodes_set in tqdm(enumerate_connected_subgraphs(G, seq_size), postfix=states):
-        subgraph = G.subgraph(nodes_set)
+    subgraphs_iter = map(G.subgraph, enumerate_connected_subgraphs(G, seq_size))
+    progress = tqdm(subgraphs_iter, postfix=states)
+    for subgraph in progress:
         subgraph_hash = nx.weisfeiler_lehman_graph_hash(subgraph)
         if subgraph_hash not in valid_graphlet_hashes:
             continue
@@ -47,6 +48,7 @@ def find_valid_sequences(
             continue
 
         states['n_valid'] += 1
+        progress.set_postfix(states)
         yield paths[0]
 
 
