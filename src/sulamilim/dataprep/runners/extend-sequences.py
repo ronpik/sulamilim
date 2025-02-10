@@ -5,8 +5,9 @@ from typing import Dict
 
 import networkx as nx
 import numpy as np
+from tqdm import tqdm
 
-from sulamilim.dataprep.embedding.glove import load_glove_embeddings
+from sulamilim.dataprep.embedding.fasttext_model import load_fasttext_vectors
 from sulamilim.dataprep.utils.hash import compute_pair_hash
 
 
@@ -22,9 +23,16 @@ def process_sequences(
     builds embedding matrices for the neighbors, computes the dot product similarity
     between all pairs at once, and writes the results to a CSV file.
     """
-    results = []
-    with open(seq_file, encoding="utf8") as f:
-        for idx, line in enumerate(f):
+    fieldnames = ["pair_hash", "word1", "word2", "sequence-index", "similarity"]
+    with (
+        open(seq_file, encoding="utf8") as f,
+        open(output_csv, "w", newline="", encoding="utf8") as csvfile
+    ):
+
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+
+        for idx, line in tqdm(enumerate(f)):
             line = line.strip()
             if not line:
                 continue
@@ -39,11 +47,8 @@ def process_sequences(
             # Get the neighbors from the word network (if the word is not in the graph, skip)
             if left_word not in G or right_word not in G:
                 continue
-            left_neighbors = set(G.neighbors(left_word))
-            right_neighbors = set(G.neighbors(right_word))
-            # Optionally, remove the word itself if present
-            left_neighbors.discard(left_word)
-            right_neighbors.discard(right_word)
+            left_neighbors = set(G.neighbors(left_word)).difference(words)
+            right_neighbors = set(G.neighbors(right_word)).difference(words).difference(left_neighbors)
 
             # Filter neighbors to those that have embeddings available.
             left_neighbors_filtered = [w for w in left_neighbors if w in embeddings]
@@ -65,21 +70,15 @@ def process_sequences(
                 neighbor_left = left_neighbors_filtered[i]
                 neighbor_right = right_neighbors_filtered[j]
                 pair_hash = compute_pair_hash(neighbor_left, neighbor_right)
-                results.append({
+                record = {
                     "pair_hash": pair_hash,
                     "word1": neighbor_left,
                     "word2": neighbor_right,
                     "sequence-index": idx,
                     "similarity": similarity
-                })
+                }
+                writer.writerow(record)
 
-    # Write the results to CSV
-    fieldnames = ["pair_hash", "word1", "word2", "sequence-index", "similarity"]
-    with open(output_csv, "w", newline="", encoding="utf8") as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        writer.writeheader()
-        for row in results:
-            writer.writerow(row)
     print(f"Results written to {output_csv}")
 
 
@@ -87,10 +86,10 @@ def main():
     parser = argparse.ArgumentParser(
         description="Extract neighbor pairs from valid sequences and compute cosine similarity using normalized GloVe embeddings."
     )
-    parser.add_argument("input_file", help="Path to the input file with valid sequences (one per line, words separated by ' - ').")
-    parser.add_argument("--output_prefix", default="output", help="Prefix for the output CSV file (default: 'output').")
-    parser.add_argument("--graph", required=True, help="Path to the word network (GraphML file).")
-    parser.add_argument("--glove", required=True, help="Path to the GloVe embeddings file (text format).")
+    parser.add_argument("--input-file", '-i', help="Path to the input file with valid sequences (one per line, words separated by ' - ').")
+    parser.add_argument("--output-prefix", '-o', default="pairs", help="Prefix for the output CSV file (default: 'output').")
+    parser.add_argument("--graph", '-g', required=True, help="Path to the word network (GraphML file).")
+    parser.add_argument("--glove", '-e', required=True, help="Path to the GloVe embeddings file (text format).")
     args = parser.parse_args()
 
     # Load the word network
@@ -99,11 +98,11 @@ def main():
 
     # Load and normalize GloVe embeddings
     print("Loading GloVe embeddings...")
-    embeddings = load_glove_embeddings(args.glove)
+    embeddings = load_fasttext_vectors(args.glove)
     print(f"Loaded {len(embeddings)} embeddings.")
 
     # Determine output CSV file name
-    output_csv = f"{args.output_prefix}_pairs.csv"
+    output_csv = f"{args.output_prefix}.csv"
 
     # Process sequences to extract neighbor pairs and compute cosine similarities
     process_sequences(args.input_file, G, embeddings, output_csv)

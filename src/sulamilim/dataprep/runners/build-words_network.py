@@ -1,6 +1,7 @@
 import argparse
 import csv
 from pathlib import Path
+from typing import Optional
 
 import networkx as nx
 
@@ -27,7 +28,7 @@ def hamming_distance(word1, word2):
     return sum(c1 != c2 for c1, c2 in zip(word1, word2))
 
 
-def load_words(file_path, word_length):
+def load_words(file_path, word_length, min_freq: Optional[int] = None):
     """
     Load words from CSV file and filter based on length and valid characters.
 
@@ -43,12 +44,27 @@ def load_words(file_path, word_length):
     with open(file_path, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         for row in reader:
+            if min_freq:
+                freq = row.get('freq')
+                if (freq is None) or int(freq) < min_freq:
+                    continue
+
             word = row['word'].strip()
             if len(word) == word_length:
                 if is_valid_hebrew_word(word):
                     valid_words.add(word)
 
     return valid_words
+
+
+def clean_small_connected_components(graph: nx.Graph, min_sequence_size: int = 4) -> nx.Graph:
+    nodes_to_clean = []
+    for cc in nx.connected_components(graph):
+        if len(cc) < min_sequence_size:
+            nodes_to_clean.extend(cc)
+
+    graph.remove_nodes_from(nodes_to_clean)
+    return graph
 
 
 def build_word_network(words):
@@ -71,6 +87,7 @@ def build_word_network(words):
             if hamming_distance(word_list[i], word_list[j]) == 1:
                 G.add_edge(word_list[i], word_list[j])
 
+    clean_small_connected_components(G)
     return G
 
 
@@ -79,13 +96,14 @@ def main():
     parser = argparse.ArgumentParser(description='Build a word network from CSV file')
     parser.add_argument('--words-path', '-w', type= Path, required=True, help='Path to the CSV file containing words')
     parser.add_argument('--length', '-l', type=int, required=True, help='Length of words to include in the network')
+    parser.add_argument('--min-freq', '-f', type=int, default=30, help='Minimum frequency of words to include in the network')
     parser.add_argument('--output-prefix', '-o',  default='word_network',
                         help='Output file path for the network (default: word_network.graphml)')
 
     args = parser.parse_args()
 
     # Load and filter words
-    words = load_words(args.words_path, args.length)
+    words = load_words(args.words_path, args.length, args.min_freq)
     print(f"Loaded {len(words)} valid words of length {args.length}")
 
     # Build the network
@@ -93,7 +111,7 @@ def main():
     print(f"Network built with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges")
 
     output_prefix = args.output_prefix
-    output = f"{output_prefix}-{args.length}.graphml"
+    output = f"{output_prefix}-l{args.length}.graphml"
 
     # Save the network
     nx.write_graphml(G, output)
