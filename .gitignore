@@ -182,3 +182,4 @@ cython_debug/
 **/*.csv
 **/*.graphml
 
+src/sulamilim/dataprep/runners/*.txt
